@@ -1,0 +1,13 @@
+myenv
+
+config.json
+
+*.spec
+
+dist
+
+build
+
+*.log
+
+category_urls.txt
