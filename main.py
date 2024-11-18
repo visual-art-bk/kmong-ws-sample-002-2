@@ -145,26 +145,83 @@ def is_valid_image(img_content):
     except (IOError, SyntaxError):
         return False
 
+
+def wait_for_page_load(driver, timeout=30):
+    """
+    JavaScript 실행을 통해 페이지 로드 완료 상태를 확인.
+    """
+    try:
+        WebDriverWait(driver, timeout).until(
+            lambda d: d.execute_script("return document.readyState") == "complete"
+        )
+        print("페이지 로드 완료.")
+    except Exception as e:
+        raise Exception(f"페이지 로드 시간 초과: {e}")
+
+def load_page_with_stability(driver, url, max_retries=5, wait_time=10):
+    """
+    페이지 로드의 안정성을 높이는 최종 로직.
+    """
+    retries = 0
+
+    while retries < max_retries:
+        try:
+            print(f"URL 로드 시도 {retries + 1}: {url}")
+            driver.get(url)
+            
+            # 페이지 로드 완료 상태 확인
+            wait_for_page_load(driver)
+
+            # "접속할 수 없음" 메시지 감지
+            if "접속할 수 없음" in driver.page_source:
+                raise Exception("접속할 수 없음 메시지 감지.")
+
+            print("페이지가 정상적으로 로드되었습니다.")
+            return driver.page_source
+
+        except Exception as e:
+            print(f"페이지 로드 실패: {e}")
+            retries += 1
+            time.sleep(wait_time)
+            print("새로고침 시도...")
+            driver.refresh()
+
+    raise Exception(f"{max_retries}번 시도 후에도 페이지를 로드하지 못했습니다: {url}")
+
+def save_urls_to_excel(urls_list, filename="urls_list.xlsx"):
+    """
+    주어진 URL 리스트를 엑셀 파일로 저장.
+    :param urls_list: URL 리스트
+    :param filename: 저장할 엑셀 파일 이름
+    """
+    # 데이터프레임 생성
+    df = pd.DataFrame(urls_list, columns=["URL"])
+    
+    # 엑셀 파일로 저장
+    df.to_excel(filename, index=False, engine="openpyxl")
+    print(f"URL 리스트가 {filename} 파일로 저장되었습니다.")
+
+
 def get_product_urls(category_url, site_name):
     driver = setup_driver()
     product_urls = set()  # 중복 제거를 위해 set 사용
     
     try:
         if '퀄엔드' in site_name:
-            driver.get(category_url)
-            time.sleep(5)
+            # driver.get(category_url)
+            # time.sleep(5)
             
-            # 페이지 끝까지 스크롤
-            last_height = driver.execute_script("return document.body.scrollHeight")
-            while True:
-                driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
-                time.sleep(2)
-                new_height = driver.execute_script("return document.body.scrollHeight")
-                if new_height == last_height:
-                    break
-                last_height = new_height
+            # # 페이지 끝까지 스크롤
+            # last_height = driver.execute_script("return document.body.scrollHeight")
+            # while True:
+            #     driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
+            #     time.sleep(2)
+            #     new_height = driver.execute_script("return document.body.scrollHeight")
+            #     if new_height == last_height:
+            #         break
+            #     last_height = new_height
             
-            html_content = driver.page_source
+            html_content = load_page_with_stability(driver, category_url)
             soup = BeautifulSoup(html_content, 'html.parser')
             
             # 상품 링크 찾기 - 더 구체적인 selector 사용
@@ -191,8 +248,10 @@ def get_product_urls(category_url, site_name):
         driver.quit()
     
     urls_list = list(product_urls)
+    save_urls_to_excel(urls_list, "urls_list.xlsx")
     print(f"\n중복 제거 후 URL 수: {len(urls_list)}")
-    return urls_list[:100]
+    
+    return urls_list[:] #테스트를 위해 1개 반환 원래는 100개
 
 
 

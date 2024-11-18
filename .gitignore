@@ -11,3 +11,5 @@ build
 *.log
 
 category_urls.txt
+
+*.xlsx
